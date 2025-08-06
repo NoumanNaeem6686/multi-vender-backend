@@ -1,6 +1,3 @@
-// src/services/otpService.js
-import fetch from "node-fetch";
-
 export const sendOtp = async (mobile) => {
   const url = `http://localhost:5000/api/webhooks/msg91
 ${process.env.MSG91_TEMPLATE_ID}&mobile=${mobile}`;
