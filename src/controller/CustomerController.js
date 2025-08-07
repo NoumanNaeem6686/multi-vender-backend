@@ -44,7 +44,34 @@ export const registerCustomer = async (req, res) => {
   }
 
   try {
-    // Create customer in the database
+    // Check if user already exists with this deviceId
+    const existingUser = await prisma.user.findUnique({
+      where: { deviceId },
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        status: "error",
+        message:
+          "User with this device ID already exists. Please use a different device ID.",
+      });
+    }
+
+    // Check if email or mobile already exists
+    const existingEmailOrMobile = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: email }, { mobile: mobile }],
+      },
+    });
+
+    if (existingEmailOrMobile) {
+      return res.status(400).json({
+        status: "error",
+        message: "User with this email or mobile already exists",
+      });
+    }
+
+    // Create new customer
     const customer = await prisma.user.create({
       data: {
         deviceId,
@@ -57,6 +84,7 @@ export const registerCustomer = async (req, res) => {
         state,
         address,
         role: "CUSTOMER",
+        status: "APPROVED",
       },
     });
 
@@ -64,12 +92,23 @@ export const registerCustomer = async (req, res) => {
       status: "success",
       data: {
         id: customer.id,
-        role: "customer",
+        deviceId: customer.deviceId,
+        email: customer.email,
+        role: customer.role,
       },
-      message: "Customer registered",
+      message: "Customer registered successfully",
     });
   } catch (error) {
     console.error("Error registering customer:", error);
+
+    // Handle specific Prisma errors
+    if (error.code === "P2002") {
+      return res.status(400).json({
+        status: "error",
+        message: "User with this email or mobile already exists",
+      });
+    }
+
     return res.status(500).json({
       status: "error",
       message: "Server error",

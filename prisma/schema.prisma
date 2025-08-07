@@ -8,37 +8,47 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  deviceId     String
-  role         Role     @default(GUEST)
-  status       Status   @default(PENDING)
-  firstName    String?
-  lastName     String?
-  mobile       String?  @unique
-  email        String?  @unique
-  pinCode      String?
-  city         String?
-  state        String?
-  address      String?
-  storeName    String?
-  storeAddress String?
-  facebookUrl  String?
-  instagramUrl String?
-  youtubeUrl   String?
-  profilePhoto String?
-  coverPhoto   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               String    @id @default(uuid())
+  deviceId         String?   @unique
+  email            String?   @unique
+  password         String?
+  firstName        String?
+  lastName         String?
+  phone            String?
+  mobile           String?   @unique
+  avatar           String?
+  profilePhoto     String?
+  coverPhoto       String?
+  isEmailVerified  Boolean   @default(false)
+  isPhoneVerified  Boolean   @default(false)
+  isActive         Boolean   @default(true)
+  role             UserRole  @default(USER)
+  status           UserStatus @default(PENDING)
+  pinCode          String?
+  city             String?
+  state            String?
+  address          String?
+  storeName        String?
+  storeAddress     String?
+  facebookUrl      String?
+  instagramUrl     String?
+  youtubeUrl       String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("users")
 }
 
-enum Role {
+enum UserRole {
   GUEST
+  USER
   CUSTOMER
   VENDOR_PENDING
   VENDOR
+  ADMIN
 }
 
-enum Status {
+enum UserStatus {
   PENDING
   APPROVED
   LIVE
