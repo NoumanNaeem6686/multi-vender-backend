@@ -1,6 +1,5 @@
 import axios from "axios";
 
-// utils/msg91.js
 const AUTH_KEY = process.env.MSG91_AUTH_KEY;
 const TEMPLATE_ID = process.env.MSG91_TEMPLATE_ID;
 
@@ -15,7 +14,7 @@ export async function sendOTP(mobile) {
       headers: { authkey: AUTH_KEY, "Content-Type": "application/json" },
     }
   );
-  return response.data; // Typically includes request ID
+  return response.data;
 }
 
 export async function verifyOTP(mobile, otp) {
@@ -25,5 +24,5 @@ export async function verifyOTP(mobile, otp) {
       headers: { authkey: AUTH_KEY },
     }
   );
-  return response.data; // Contains message such as "OTP verified"
+  return response.data;
 }

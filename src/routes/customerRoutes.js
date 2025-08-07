@@ -1,8 +1,8 @@
 import express from "express";
-import { registerCustomer } from "../controller/CustomerController.js";
 
 const router = express.Router();
 
-router.post("/auth/register/customer", registerCustomer);
+// Customer-specific routes can be added here in the future
+// Note: Customer registration is handled in authRoutes.js
 
 export default router;

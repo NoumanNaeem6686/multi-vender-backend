@@ -1,17 +1,34 @@
 import prisma from "../../prisma/index.js";
+import { validateDeviceId, validateEmail } from "../utils/validation.js";
+import {
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+  USER_ROLES,
+  USER_STATUS,
+} from "../constants/validation.js";
 
 export const createGuestUser = async (req, res) => {
-  const { id: deviceId } = req.params;
-  const { email } = req.body || {};
+  const { deviceId, email } = req.body;
 
-  if (!deviceId) {
-    return res
-      .status(400)
-      .json({ status: "error", message: "Device ID is required" });
+  const deviceValidation = validateDeviceId(deviceId);
+  if (!deviceValidation.isValid) {
+    return res.status(400).json({
+      status: "error",
+      message: deviceValidation.message,
+    });
+  }
+
+  if (email) {
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
+      return res.status(400).json({
+        status: "error",
+        message: emailValidation.message,
+      });
+    }
   }
 
   try {
-    // Check if user already exists with this deviceId
     const existingUser = await prisma.user.findUnique({
       where: { deviceId },
     });
@@ -20,37 +37,35 @@ export const createGuestUser = async (req, res) => {
       return res.status(200).json({
         status: "success",
         data: {
-          id: existingUser.id,
-          deviceId: existingUser.deviceId,
-          email: existingUser.email,
-          role: existingUser.role,
+          id: existingUser.deviceId,
+          role: "guest",
         },
-        message: "Guest user already exists",
+        message: SUCCESS_MESSAGES.GUEST_CREATED,
       });
     }
 
-    // Create new guest user
     const guest = await prisma.user.create({
       data: {
         deviceId,
         email: email || null,
-        role: "GUEST",
-        status: "PENDING",
+        role: USER_ROLES.GUEST,
+        status: USER_STATUS.PENDING,
       },
     });
 
     return res.status(200).json({
       status: "success",
       data: {
-        id: guest.id,
-        deviceId: guest.deviceId,
-        email: guest.email,
-        role: guest.role,
+        id: guest.deviceId,
+        role: "guest",
       },
-      message: "Guest user created",
+      message: SUCCESS_MESSAGES.GUEST_CREATED,
     });
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({ status: "error", message: "Server error" });
+    console.error("Guest creation error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
+    });
   }
 };
