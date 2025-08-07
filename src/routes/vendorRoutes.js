@@ -1,14 +1,21 @@
 import express from "express";
-import multer from "multer";
 import {
   registerVendor,
   updateVendor,
-} from "../controller/VendorController.js";
+} from "../controller/vendorController.js";
+import {
+  uploadVendorPhotos,
+  handleUploadError,
+} from "../middleware/uploadMiddleware.js";
 
 const router = express.Router();
-const upload = multer();
 
 router.post("/auth/register/vendor", registerVendor);
-router.post("/auth/vendor/update", upload.none(), updateVendor);
+router.post(
+  "/auth/vendor/update",
+  uploadVendorPhotos,
+  handleUploadError,
+  updateVendor
+);
 
 export default router;

@@ -1,4 +1,10 @@
 import prisma from "../../prisma/index.js";
+import { verifyOTP } from "../services/otpService.js";
+import {
+  uploadVendorProfilePhoto,
+  uploadVendorCoverPhoto,
+  deleteFromS3,
+} from "../services/s3Service.js";
 
 export const registerVendor = async (req, res) => {
   const {
@@ -39,8 +45,16 @@ export const registerVendor = async (req, res) => {
     });
   }
 
-  const isOtpValid = otp === "123456"; // replace with real OTP logic
-  if (!isOtpValid) {
+  try {
+    const otpResult = await verifyOTP(mobile, otp);
+    if (otpResult?.message !== "OTP verified success") {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid OTP",
+      });
+    }
+  } catch (otpError) {
+    console.error("OTP verification error:", otpError);
     return res.status(400).json({
       status: "error",
       message: "Invalid OTP",
@@ -116,17 +130,7 @@ export const updateUserRole = async (req, res) => {
     });
   }
 
-  // OTP validation (replace with real OTP logic)
-  const isOtpValid = otp === "123456";
-  if (!isOtpValid) {
-    return res.status(400).json({
-      status: "error",
-      message: "Invalid OTP",
-    });
-  }
-
   try {
-    // Find existing user
     const existingUser = await prisma.user.findUnique({
       where: { id },
     });
@@ -138,7 +142,6 @@ export const updateUserRole = async (req, res) => {
       });
     }
 
-    // Check if user is a customer
     if (existingUser.role !== "CUSTOMER") {
       return res.status(400).json({
         status: "error",
@@ -146,7 +149,22 @@ export const updateUserRole = async (req, res) => {
       });
     }
 
-    // Update user role to vendor pending
+    try {
+      const otpResult = await verifyOTP(existingUser.mobile, otp);
+      if (otpResult?.message !== "OTP verified success") {
+        return res.status(400).json({
+          status: "error",
+          message: "Invalid OTP",
+        });
+      }
+    } catch (otpError) {
+      console.error("OTP verification error:", otpError);
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid OTP",
+      });
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id },
       data: {
@@ -200,7 +218,6 @@ export const getVendorStatus = async (req, res) => {
       });
     }
 
-    // Convert role enum to lowercase string for response
     const roleMap = {
       GUEST: "guest",
       CUSTOMER: "customer",
@@ -208,7 +225,6 @@ export const getVendorStatus = async (req, res) => {
       VENDOR: "vendor",
     };
 
-    // Convert status enum to lowercase string for response
     const statusMap = {
       PENDING: "pending",
       APPROVED: "approved",
@@ -250,6 +266,7 @@ export const updateVendor = async (req, res) => {
       facebookUrl,
       instagramUrl,
       youtubeUrl,
+      otherDetails,
     } = req.body;
 
     if (!id) {
@@ -258,7 +275,13 @@ export const updateVendor = async (req, res) => {
         .json({ status: "error", message: "ID is required" });
     }
 
-    // First, check if the vendor exists and get their current status
+    if (!req.files?.profilePhoto || !req.files?.coverPhoto) {
+      return res.status(400).json({
+        status: "error",
+        message: "Profile photo and cover photo are required",
+      });
+    }
+
     const existingVendor = await prisma.user.findUnique({
       where: { id },
     });
@@ -270,20 +293,13 @@ export const updateVendor = async (req, res) => {
       });
     }
 
-    // Check if vendor is LIVE before allowing updates
     if (existingVendor.status !== "LIVE") {
       return res.status(403).json({
         status: "error",
-        message:
-          "You are not live. Please ask your admin to approve your account, then you can update your information.",
-        data: {
-          currentStatus: existingVendor.status,
-          currentRole: existingVendor.role,
-        },
+        message: "Approval pending",
       });
     }
 
-    // Check if user is actually a vendor
     if (existingVendor.role !== "VENDOR") {
       return res.status(403).json({
         status: "error",
@@ -291,18 +307,48 @@ export const updateVendor = async (req, res) => {
       });
     }
 
-    const profilePhotoFile = req.files?.profilePhoto?.[0] || null;
-    const coverPhotoFile = req.files?.coverPhoto?.[0] || null;
+    let profilePhotoUrl = null;
+    let coverPhotoUrl = null;
+    let uploadedFiles = [];
 
-    // Fallback dummy URLs or skip updates if files not uploaded
-    const profilePhoto = profilePhotoFile
-      ? `/uploads/${profilePhotoFile.filename}`
-      : undefined;
-    const coverPhoto = coverPhotoFile
-      ? `/uploads/${coverPhotoFile.filename}`
-      : undefined;
+    try {
+      if (req.files.profilePhoto) {
+        const profileFile = req.files.profilePhoto[0];
+        const profileResult = await uploadVendorProfilePhoto(
+          profileFile.buffer,
+          profileFile.originalname,
+          profileFile.mimetype
+        );
+        profilePhotoUrl = profileResult.fileUrl;
+        uploadedFiles.push({
+          type: "profile",
+          s3Key: profileResult.s3Key,
+          url: profileResult.fileUrl,
+        });
+      }
 
-    // Prepare update data with only the fields that are provided
+      if (req.files.coverPhoto) {
+        const coverFile = req.files.coverPhoto[0];
+        const coverResult = await uploadVendorCoverPhoto(
+          coverFile.buffer,
+          coverFile.originalname,
+          coverFile.mimetype
+        );
+        coverPhotoUrl = coverResult.fileUrl;
+        uploadedFiles.push({
+          type: "cover",
+          s3Key: coverResult.s3Key,
+          url: coverResult.fileUrl,
+        });
+      }
+    } catch (uploadError) {
+      console.error("File upload error:", uploadError);
+      return res.status(400).json({
+        status: "error",
+        message: "File upload failed: " + uploadError.message,
+      });
+    }
+
     const updateData = {};
 
     if (firstName !== undefined) updateData.firstName = firstName;
@@ -318,8 +364,8 @@ export const updateVendor = async (req, res) => {
     if (facebookUrl !== undefined) updateData.facebookUrl = facebookUrl;
     if (instagramUrl !== undefined) updateData.instagramUrl = instagramUrl;
     if (youtubeUrl !== undefined) updateData.youtubeUrl = youtubeUrl;
-    if (profilePhoto) updateData.profilePhoto = profilePhoto;
-    if (coverPhoto) updateData.coverPhoto = coverPhoto;
+    if (profilePhotoUrl) updateData.profilePhoto = profilePhotoUrl;
+    if (coverPhotoUrl) updateData.coverPhoto = coverPhotoUrl;
 
     const updatedVendor = await prisma.user.update({
       where: { id },
@@ -330,14 +376,28 @@ export const updateVendor = async (req, res) => {
       status: "success",
       data: {
         id: updatedVendor.id,
-        role: updatedVendor.role,
-        status: updatedVendor.status,
-        message: "Vendor information updated successfully",
+        role: "vendor",
+        status: "live",
+        profilePhoto: profilePhotoUrl,
+        coverPhoto: coverPhotoUrl,
       },
-      message: "Vendor information updated",
+      message: "Vendor live",
     });
   } catch (error) {
     console.error("Update Vendor Error:", error);
+
+    if (uploadedFiles.length > 0) {
+      console.log("Cleaning up uploaded files due to database error...");
+      for (const file of uploadedFiles) {
+        try {
+          await deleteFromS3(file.s3Key);
+          console.log(`Deleted file: ${file.s3Key}`);
+        } catch (deleteError) {
+          console.error(`Failed to delete file ${file.s3Key}:`, deleteError);
+        }
+      }
+    }
+
     return res.status(500).json({
       status: "error",
       message: "Server error",
