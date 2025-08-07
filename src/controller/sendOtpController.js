@@ -1,35 +1,38 @@
-export const sendOtp = async (mobile) => {
-  const url = `http://localhost:5000/api/webhooks/msg91
-${process.env.MSG91_TEMPLATE_ID}&mobile=${mobile}`;
+import { sendOTP } from "../utils/msg91.js";
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authkey: process.env.MSG91_AUTHKEY, // ✅ your MSG91 auth key
-    },
-  });
+export const sendOtpController = async (req, res) => {
+  const { mobile } = req.body;
 
-  const data = await response.json();
-  return data;
+  if (!mobile) {
+    return res.status(400).json({ status: "error", message: "Invalid mobile" });
+  }
+
+  try {
+    const data = await sendOTP(mobile);
+    console.log("🚀 ~ sendOtpController ~ data:", data)
+    return res.status(200).json({ status: "success", message: "OTP sent" });
+  } catch (err) {
+    return res.status(400).json({ status: "error", message: "Invalid mobile" });
+  }
 };
 
-export const verifyOtpAccessToken = async (accessToken) => {
-  const url = "http://localhost:5000/api/webhooks/msg91";
+export const verifyOtpController = async (req, res) => {
+  const { mobile, otp } = req.body;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      authkey: process.env.MSG91_AUTHKEY,
-      "access-token": accessToken,
-    }),
-  });
+  if (!mobile || !otp) {
+    return res.status(400).json({ status: "error", message: "Invalid OTP" });
+  }
 
-  const data = await response.json();
-  return data;
+  try {
+    const result = await verifyOTP(mobile, otp);
+    if (result?.message === "OTP verified success") {
+      return res
+        .status(200)
+        .json({ status: "success", message: "OTP verified" });
+    } else {
+      return res.status(400).json({ status: "error", message: "Invalid OTP" });
+    }
+  } catch (err) {
+    return res.status(400).json({ status: "error", message: "Invalid OTP" });
+  }
 };
