@@ -5,6 +5,18 @@ import {
   uploadVendorCoverPhoto,
   deleteFromS3,
 } from "../services/s3Service.js";
+import {
+  validateEmail,
+  validateMobile,
+  validateRequiredFields,
+} from "../utils/validation.js";
+
+import {
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+  USER_ROLES,
+  USER_STATUS,
+} from "../constants/validation.js";
 
 export const registerVendor = async (req, res) => {
   const {
@@ -25,23 +37,42 @@ export const registerVendor = async (req, res) => {
     otp,
   } = req.body;
 
-  if (
-    !deviceId ||
-    !firstName ||
-    !lastName ||
-    !mobile ||
-    !email ||
-    !pinCode ||
-    !city ||
-    !state ||
-    !address ||
-    !storeName ||
-    !storeAddress ||
-    !otp
-  ) {
+  const requiredFields = [
+    "deviceId",
+    "firstName",
+    "lastName",
+    "mobile",
+    "email",
+    "pinCode",
+    "city",
+    "state",
+    "address",
+    "storeName",
+    "storeAddress",
+    "otp",
+  ];
+
+  const fieldsValidation = validateRequiredFields(req.body, requiredFields);
+  if (!fieldsValidation.isValid) {
     return res.status(400).json({
       status: "error",
-      message: "All required fields must be provided",
+      message: fieldsValidation.message,
+    });
+  }
+
+  const emailValidation = validateEmail(email);
+  if (!emailValidation.isValid) {
+    return res.status(400).json({
+      status: "error",
+      message: emailValidation.message,
+    });
+  }
+
+  const mobileValidation = validateMobile(mobile);
+  if (!mobileValidation.isValid) {
+    return res.status(400).json({
+      status: "error",
+      message: mobileValidation.message,
     });
   }
 
@@ -50,14 +81,14 @@ export const registerVendor = async (req, res) => {
     if (otpResult?.message !== "OTP verified success") {
       return res.status(400).json({
         status: "error",
-        message: "Invalid OTP",
+        message: ERROR_MESSAGES.INVALID_OTP,
       });
     }
   } catch (otpError) {
     console.error("OTP verification error:", otpError);
     return res.status(400).json({
       status: "error",
-      message: "Invalid OTP",
+      message: ERROR_MESSAGES.INVALID_OTP,
     });
   }
 
@@ -69,7 +100,7 @@ export const registerVendor = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({
         status: "error",
-        message: "User with this email already exists",
+        message: ERROR_MESSAGES.USER_EXISTS,
       });
     }
 
@@ -89,8 +120,8 @@ export const registerVendor = async (req, res) => {
         facebookUrl,
         instagramUrl,
         youtubeUrl,
-        role: "VENDOR_PENDING",
-        status: "PENDING",
+        role: USER_ROLES.VENDOR_PENDING,
+        status: USER_STATUS.PENDING,
       },
     });
 
@@ -98,16 +129,16 @@ export const registerVendor = async (req, res) => {
       status: "success",
       data: {
         id: vendor.id,
-        role: "vendorPending",
-        status: "pending",
+        role: vendor.role,
+        status: vendor.status,
       },
-      message: "Vendor submitted",
+      message: SUCCESS_MESSAGES.VENDOR_SUBMITTED,
     });
   } catch (err) {
     console.error("Vendor registration error:", err);
     return res.status(500).json({
       status: "error",
-      message: "Server error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
     });
   }
 };
@@ -123,10 +154,12 @@ export const updateUserRole = async (req, res) => {
     otp,
   } = req.body;
 
-  if (!id || !storeName || !storeAddress || !otp) {
+  const requiredFields = ["id", "storeName", "storeAddress", "otp"];
+  const fieldsValidation = validateRequiredFields(req.body, requiredFields);
+  if (!fieldsValidation.isValid) {
     return res.status(400).json({
       status: "error",
-      message: "ID, storeName, storeAddress, and OTP are required",
+      message: fieldsValidation.message,
     });
   }
 
@@ -138,14 +171,14 @@ export const updateUserRole = async (req, res) => {
     if (!existingUser) {
       return res.status(404).json({
         status: "error",
-        message: "User not found",
+        message: ERROR_MESSAGES.USER_NOT_FOUND,
       });
     }
 
-    if (existingUser.role !== "CUSTOMER") {
+    if (existingUser.role !== USER_ROLES.CUSTOMER) {
       return res.status(400).json({
         status: "error",
-        message: "Only customers can be upgraded to vendors",
+        message: ERROR_MESSAGES.ONLY_CUSTOMERS_UPGRADE,
       });
     }
 
@@ -154,14 +187,14 @@ export const updateUserRole = async (req, res) => {
       if (otpResult?.message !== "OTP verified success") {
         return res.status(400).json({
           status: "error",
-          message: "Invalid OTP",
+          message: ERROR_MESSAGES.INVALID_OTP,
         });
       }
     } catch (otpError) {
       console.error("OTP verification error:", otpError);
       return res.status(400).json({
         status: "error",
-        message: "Invalid OTP",
+        message: ERROR_MESSAGES.INVALID_OTP,
       });
     }
 
@@ -173,8 +206,8 @@ export const updateUserRole = async (req, res) => {
         facebookUrl,
         instagramUrl,
         youtubeUrl,
-        role: "VENDOR_PENDING",
-        status: "PENDING",
+        role: USER_ROLES.VENDOR_PENDING,
+        status: USER_STATUS.PENDING,
       },
     });
 
@@ -182,16 +215,16 @@ export const updateUserRole = async (req, res) => {
       status: "success",
       data: {
         id: updatedUser.id,
-        role: "vendorPending",
-        status: "pending",
+        role: updatedUser.role,
+        status: updatedUser.status,
       },
-      message: "Role update submitted",
+      message: SUCCESS_MESSAGES.ROLE_UPDATE_SUBMITTED,
     });
   } catch (error) {
     console.error("Update user role error:", error);
     return res.status(500).json({
       status: "error",
-      message: "Server error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
     });
   }
 };
@@ -202,7 +235,7 @@ export const getVendorStatus = async (req, res) => {
   if (!id) {
     return res.status(400).json({
       status: "error",
-      message: "User ID is required",
+      message: ERROR_MESSAGES.REQUIRED_FIELDS,
     });
   }
 
@@ -214,37 +247,24 @@ export const getVendorStatus = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         status: "error",
-        message: "User not found",
+        message: ERROR_MESSAGES.USER_NOT_FOUND,
       });
     }
-
-    const roleMap = {
-      GUEST: "guest",
-      CUSTOMER: "customer",
-      VENDOR_PENDING: "vendorPending",
-      VENDOR: "vendor",
-    };
-
-    const statusMap = {
-      PENDING: "pending",
-      APPROVED: "approved",
-      LIVE: "live",
-    };
 
     return res.status(200).json({
       status: "success",
       data: {
         id: user.id,
-        role: roleMap[user.role] || user.role.toLowerCase(),
-        status: statusMap[user.status] || user.status.toLowerCase(),
+        role: user.role,
+        status: user.status,
       },
-      message: "Status retrieved",
+      message: SUCCESS_MESSAGES.STATUS_RETRIEVED,
     });
   } catch (error) {
     console.error("Get vendor status error:", error);
     return res.status(500).json({
       status: "error",
-      message: "Server error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
     });
   }
 };
@@ -266,19 +286,19 @@ export const updateVendor = async (req, res) => {
       facebookUrl,
       instagramUrl,
       youtubeUrl,
-      otherDetails,
     } = req.body;
 
     if (!id) {
-      return res
-        .status(400)
-        .json({ status: "error", message: "ID is required" });
+      return res.status(400).json({
+        status: "error",
+        message: ERROR_MESSAGES.REQUIRED_FIELDS,
+      });
     }
 
     if (!req.files?.profilePhoto || !req.files?.coverPhoto) {
       return res.status(400).json({
         status: "error",
-        message: "Profile photo and cover photo are required",
+        message: ERROR_MESSAGES.FILES_REQUIRED,
       });
     }
 
@@ -289,18 +309,18 @@ export const updateVendor = async (req, res) => {
     if (!existingVendor) {
       return res.status(404).json({
         status: "error",
-        message: "Vendor not found",
+        message: ERROR_MESSAGES.USER_NOT_FOUND,
       });
     }
 
-    if (existingVendor.status !== "LIVE") {
+    if (existingVendor.status !== USER_STATUS.LIVE) {
       return res.status(403).json({
         status: "error",
-        message: "Approval pending",
+        message: ERROR_MESSAGES.APPROVAL_PENDING,
       });
     }
 
-    if (existingVendor.role !== "VENDOR") {
+    if (existingVendor.role !== USER_ROLES.VENDOR) {
       return res.status(403).json({
         status: "error",
         message: "Only vendors can update vendor information",
@@ -376,12 +396,12 @@ export const updateVendor = async (req, res) => {
       status: "success",
       data: {
         id: updatedVendor.id,
-        role: "vendor",
-        status: "live",
+        role: updatedVendor.role,
+        status: updatedVendor.status,
         profilePhoto: profilePhotoUrl,
         coverPhoto: coverPhotoUrl,
       },
-      message: "Vendor live",
+      message: SUCCESS_MESSAGES.VENDOR_LIVE,
     });
   } catch (error) {
     console.error("Update Vendor Error:", error);
@@ -400,7 +420,7 @@ export const updateVendor = async (req, res) => {
 
     return res.status(500).json({
       status: "error",
-      message: "Server error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
     });
   }
 };

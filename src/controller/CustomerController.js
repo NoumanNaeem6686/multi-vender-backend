@@ -5,6 +5,7 @@ import {
   validateMobile,
   validateRequiredFields,
 } from "../utils/validation.js";
+
 import {
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
@@ -123,7 +124,7 @@ export const registerCustomer = async (req, res) => {
       status: "success",
       data: {
         id: customer.id,
-        role: "customer",
+        role: customer.role,
       },
       message: SUCCESS_MESSAGES.CUSTOMER_REGISTERED,
     });

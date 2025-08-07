@@ -1,5 +1,6 @@
 import prisma from "../../prisma/index.js";
 import { validateDeviceId, validateEmail } from "../utils/validation.js";
+
 import {
   ERROR_MESSAGES,
   SUCCESS_MESSAGES,
@@ -38,7 +39,7 @@ export const createGuestUser = async (req, res) => {
         status: "success",
         data: {
           id: existingUser.deviceId,
-          role: "guest",
+          role: existingUser.role,
         },
         message: SUCCESS_MESSAGES.GUEST_CREATED,
       });
@@ -57,7 +58,7 @@ export const createGuestUser = async (req, res) => {
       status: "success",
       data: {
         id: guest.deviceId,
-        role: "guest",
+        role: guest.role,
       },
       message: SUCCESS_MESSAGES.GUEST_CREATED,
     });
