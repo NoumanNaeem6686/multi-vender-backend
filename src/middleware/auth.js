@@ -1,6 +1,6 @@
 import admin from "../config/firebase.js";
 import prisma from "../../prisma/index.js";
-import { USER_ROLES } from "../constants/validation.js";
+import { USER_ROLES, USER_STATUS } from "../constants/validation.js";
 
 export const authenticateFirebase = async (req, res, next) => {
   try {
@@ -54,46 +54,66 @@ export const authenticateFirebase = async (req, res, next) => {
   }
 };
 
-export const requireRole = (allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        status: "error",
-        message: "Authentication required",
-      });
-    }
+// Role-based authentication middleware
+export const requireUser = [
+  authenticateFirebase,
+  (req, res, next) => {
+    const { role } = req.user;
 
-    // Convert single role to array for consistent checking
-    const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-
-    if (!roles.includes(req.user.role)) {
+    // Allow users, customers, and approved vendors
+    if (
+      ![USER_ROLES.USER, USER_ROLES.CUSTOMER, USER_ROLES.VENDOR].includes(role)
+    ) {
       return res.status(403).json({
         status: "error",
-        message: "Insufficient permissions",
-        required: roles,
-        current: req.user.role,
+        message: "Access denied for this role",
       });
     }
 
     next();
-  };
-};
-
-export const requireAuth = authenticateFirebase;
-
-export const requireCustomer = [
-  authenticateFirebase,
-  requireRole([USER_ROLES.CUSTOMER, USER_ROLES.VENDOR, USER_ROLES.ADMIN]),
+  },
 ];
 
 export const requireVendor = [
   authenticateFirebase,
-  requireRole([USER_ROLES.VENDOR, USER_ROLES.ADMIN]),
+  (req, res, next) => {
+    const { role, status } = req.user;
+
+    // Only vendors and admins can access vendor features
+    if (![USER_ROLES.VENDOR, USER_ROLES.ADMIN].includes(role)) {
+      return res.status(403).json({
+        status: "error",
+        message: "Only vendors and administrators can access this feature",
+      });
+    }
+
+    // Vendors must be approved (LIVE status)
+    if (role === USER_ROLES.VENDOR && status !== USER_STATUS.LIVE) {
+      return res.status(403).json({
+        status: "error",
+        message:
+          "Vendor account not approved yet. Please wait for admin approval.",
+      });
+    }
+
+    next();
+  },
 ];
 
 export const requireAdmin = [
   authenticateFirebase,
-  requireRole([USER_ROLES.ADMIN]),
+  (req, res, next) => {
+    const { role } = req.user;
+
+    if (role !== USER_ROLES.ADMIN) {
+      return res.status(403).json({
+        status: "error",
+        message: "Only administrators can access this feature",
+      });
+    }
+
+    next();
+  },
 ];
 
 export const optionalAuth = async (req, res, next) => {
