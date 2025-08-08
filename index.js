@@ -3,8 +3,8 @@ import dotenv from "dotenv";
 import prisma from "./prisma/index.js";
 import userRoutes from "./src/routes/authRoutes.js";
 import customerRoutes from "./src/routes/customerRoutes.js";
-import vendorRoutes from "./src/routes/vendorRoutes.js";
 import adminRoutes from "./src/routes/adminRoutes.js";
+import webPortalRoutes from "./src/routes/webPortalRoutes.js";
 import publicRoutes from "./src/routes/publicRoutes.js";
 
 dotenv.config();
@@ -15,8 +15,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", userRoutes);
 app.use("/api", customerRoutes);
-app.use("/api", vendorRoutes);
 app.use("/api", adminRoutes);
+app.use("/api", webPortalRoutes);
 app.use("/api", publicRoutes);
 
 app.get("/health", async (req, res) => {
