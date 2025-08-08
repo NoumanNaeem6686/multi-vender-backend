@@ -1,85 +1,100 @@
 import prisma from "../../prisma/index.js";
-import { verifyOTP } from "../services/otpService.js";
 import {
   uploadVendorProfilePhoto,
   uploadVendorCoverPhoto,
   deleteFromS3,
 } from "../services/s3Service.js";
+import { validateMobile, validateRequiredFields } from "../utils/validation.js";
 
-export const registerVendor = async (req, res) => {
-  const {
-    deviceId,
-    firstName,
-    lastName,
-    mobile,
-    email,
-    pinCode,
-    city,
-    state,
-    address,
-    storeName,
-    storeAddress,
-    facebookUrl,
-    instagramUrl,
-    youtubeUrl,
-    otp,
-  } = req.body;
+import {
+  ERROR_MESSAGES,
+  SUCCESS_MESSAGES,
+  USER_ROLES,
+  USER_STATUS,
+} from "../constants/validation.js";
 
-  if (
-    !deviceId ||
-    !firstName ||
-    !lastName ||
-    !mobile ||
-    !email ||
-    !pinCode ||
-    !city ||
-    !state ||
-    !address ||
-    !storeName ||
-    !storeAddress ||
-    !otp
-  ) {
-    return res.status(400).json({
-      status: "error",
-      message: "All required fields must be provided",
-    });
-  }
-
+// New Firebase-based vendor registration for web portal
+export const registerVendorWebPortal = async (req, res) => {
   try {
-    const otpResult = await verifyOTP(mobile, otp);
-    if (otpResult?.message !== "OTP verified success") {
+    // Extract user info from Firebase middleware (already authenticated)
+    const user = req.user;
+
+    const {
+      firstName,
+      lastName,
+      mobile,
+      pinCode,
+      city,
+      state,
+      address,
+      storeName,
+      storeAddress,
+      facebookUrl,
+      instagramUrl,
+      youtubeUrl,
+    } = req.body;
+
+    const requiredFields = [
+      "firstName",
+      "lastName",
+      "mobile",
+      "pinCode",
+      "city",
+      "state",
+      "address",
+      "storeName",
+      "storeAddress",
+    ];
+
+    const fieldsValidation = validateRequiredFields(req.body, requiredFields);
+    if (!fieldsValidation.isValid) {
       return res.status(400).json({
         status: "error",
-        message: "Invalid OTP",
-      });
-    }
-  } catch (otpError) {
-    console.error("OTP verification error:", otpError);
-    return res.status(400).json({
-      status: "error",
-      message: "Invalid OTP",
-    });
-  }
-
-  try {
-    const existingUser = await prisma.user.findUnique({
-      where: { email: req.body.email },
-    });
-
-    if (existingUser) {
-      return res.status(400).json({
-        status: "error",
-        message: "User with this email already exists",
+        message: fieldsValidation.message,
       });
     }
 
-    const vendor = await prisma.user.create({
+    const mobileValidation = validateMobile(mobile);
+    if (!mobileValidation.isValid) {
+      return res.status(400).json({
+        status: "error",
+        message: mobileValidation.message,
+      });
+    }
+
+    // Check if user already has vendor role
+    if (
+      user.role === USER_ROLES.VENDOR ||
+      user.role === USER_ROLES.VENDOR_PENDING
+    ) {
+      return res.status(400).json({
+        status: "error",
+        message: "User is already registered as vendor",
+      });
+    }
+
+    // Check if mobile number is already used by another vendor
+    const existingMobile = await prisma.user.findFirst({
+      where: {
+        mobile: mobile,
+        id: { not: user.id },
+      },
+    });
+
+    if (existingMobile) {
+      return res.status(400).json({
+        status: "error",
+        message: "Mobile number already registered with another account",
+      });
+    }
+
+    // Update user to vendor pending status
+    const vendor = await prisma.user.update({
+      where: { id: user.id },
       data: {
-        deviceId,
         firstName,
         lastName,
         mobile,
-        email,
         pinCode,
         city,
         state,
@@ -89,8 +104,9 @@ export const registerVendor = async (req, res) => {
         facebookUrl,
         instagramUrl,
         youtubeUrl,
-        role: "VENDOR_PENDING",
-        status: "PENDING",
+        role: USER_ROLES.VENDOR_PENDING,
+        status: USER_STATUS.PENDING,
+        isPhoneVerified: false, // Will be verified when they login via mobile
       },
     });
 
@@ -98,16 +114,18 @@ export const registerVendor = async (req, res) => {
       status: "success",
       data: {
         id: vendor.id,
-        role: "vendorPending",
-        status: "pending",
+        role: vendor.role,
+        status: vendor.status,
+        email: vendor.email,
+        mobile: vendor.mobile,
       },
-      message: "Vendor submitted",
+      message: SUCCESS_MESSAGES.VENDOR_SUBMITTED,
     });
-  } catch (err) {
-    console.error("Vendor registration error:", err);
+  } catch (error) {
+    console.error("Vendor web portal registration error:", error);
     return res.status(500).json({
       status: "error",
-      message: "Server error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
     });
   }
 };
@@ -123,10 +141,12 @@ export const updateUserRole = async (req, res) => {
     otp,
   } = req.body;
 
-  if (!id || !storeName || !storeAddress || !otp) {
+  const requiredFields = ["id", "storeName", "storeAddress", "otp"];
+  const fieldsValidation = validateRequiredFields(req.body, requiredFields);
+  if (!fieldsValidation.isValid) {
     return res.status(400).json({
       status: "error",
-      message: "ID, storeName, storeAddress, and OTP are required",
+      message: fieldsValidation.message,
     });
   }
 
@@ -138,14 +158,14 @@ export const updateUserRole = async (req, res) => {
     if (!existingUser) {
       return res.status(404).json({
         status: "error",
-        message: "User not found",
+        message: ERROR_MESSAGES.USER_NOT_FOUND,
       });
     }
 
-    if (existingUser.role !== "CUSTOMER") {
+    if (existingUser.role !== USER_ROLES.CUSTOMER) {
       return res.status(400).json({
         status: "error",
-        message: "Only customers can be upgraded to vendors",
+        message: ERROR_MESSAGES.ONLY_CUSTOMERS_UPGRADE,
       });
     }
 
@@ -154,14 +174,14 @@ export const updateUserRole = async (req, res) => {
       if (otpResult?.message !== "OTP verified success") {
         return res.status(400).json({
           status: "error",
-          message: "Invalid OTP",
+          message: ERROR_MESSAGES.INVALID_OTP,
         });
       }
     } catch (otpError) {
       console.error("OTP verification error:", otpError);
       return res.status(400).json({
         status: "error",
-        message: "Invalid OTP",
+        message: ERROR_MESSAGES.INVALID_OTP,
       });
     }
 
@@ -173,8 +193,8 @@ export const updateUserRole = async (req, res) => {
         facebookUrl,
         instagramUrl,
         youtubeUrl,
-        role: "VENDOR_PENDING",
-        status: "PENDING",
+        role: USER_ROLES.VENDOR_PENDING,
+        status: USER_STATUS.PENDING,
       },
     });
 
@@ -182,16 +202,16 @@ export const updateUserRole = async (req, res) => {
       status: "success",
       data: {
         id: updatedUser.id,
-        role: "vendorPending",
-        status: "pending",
+        role: updatedUser.role,
+        status: updatedUser.status,
       },
-      message: "Role update submitted",
+      message: SUCCESS_MESSAGES.ROLE_UPDATE_SUBMITTED,
     });
   } catch (error) {
     console.error("Update user role error:", error);
     return res.status(500).json({
       status: "error",
-      message: "Server error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
     });
   }
 };
@@ -202,7 +222,7 @@ export const getVendorStatus = async (req, res) => {
   if (!id) {
     return res.status(400).json({
       status: "error",
-      message: "User ID is required",
+      message: ERROR_MESSAGES.REQUIRED_FIELDS,
     });
   }
 
@@ -214,37 +234,175 @@ export const getVendorStatus = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         status: "error",
-        message: "User not found",
+        message: ERROR_MESSAGES.USER_NOT_FOUND,
       });
     }
-
-    const roleMap = {
-      GUEST: "guest",
-      CUSTOMER: "customer",
-      VENDOR_PENDING: "vendorPending",
-      VENDOR: "vendor",
-    };
-
-    const statusMap = {
-      PENDING: "pending",
-      APPROVED: "approved",
-      LIVE: "live",
-    };
 
     return res.status(200).json({
       status: "success",
       data: {
         id: user.id,
-        role: roleMap[user.role] || user.role.toLowerCase(),
-        status: statusMap[user.status] || user.status.toLowerCase(),
+        role: user.role,
+        status: user.status,
       },
-      message: "Status retrieved",
+      message: SUCCESS_MESSAGES.STATUS_RETRIEVED,
     });
   } catch (error) {
     console.error("Get vendor status error:", error);
     return res.status(500).json({
       status: "error",
-      message: "Server error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
+    });
+  }
+};
+
+// Admin endpoint to approve/reject vendor
+export const approveVendor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, reason } = req.body; // action: "approve" or "reject"
+
+    if (!["approve", "reject"].includes(action)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid action. Use 'approve' or 'reject'",
+      });
+    }
+
+    const vendor = await prisma.user.findUnique({
+      where: { id },
+    });
+
+    if (!vendor) {
+      return res.status(404).json({
+        status: "error",
+        message: ERROR_MESSAGES.USER_NOT_FOUND,
+      });
+    }
+
+    if (vendor.role !== USER_ROLES.VENDOR_PENDING) {
+      return res.status(400).json({
+        status: "error",
+        message: "Only pending vendors can be approved/rejected",
+      });
+    }
+
+    const updateData = {
+      updatedAt: new Date(),
+    };
+
+    if (action === "approve") {
+      updateData.role = USER_ROLES.VENDOR;
+      updateData.status = USER_STATUS.LIVE;
+    } else {
+      // Keep as VENDOR_PENDING but mark as rejected in status
+      updateData.status = USER_STATUS.PENDING; // Could add a REJECTED status to enum
+    }
+
+    const updatedVendor = await prisma.user.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      data: {
+        id: updatedVendor.id,
+        email: updatedVendor.email,
+        mobile: updatedVendor.mobile,
+        firstName: updatedVendor.firstName,
+        lastName: updatedVendor.lastName,
+        storeName: updatedVendor.storeName,
+        role: updatedVendor.role,
+        status: updatedVendor.status,
+      },
+      message:
+        action === "approve"
+          ? "Vendor approved successfully"
+          : "Vendor rejected",
+    });
+  } catch (error) {
+    console.error("Approve vendor error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
+    });
+  }
+};
+
+// Admin endpoint to get all pending vendors
+export const getPendingVendors = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const whereClause = {
+      role: USER_ROLES.VENDOR_PENDING,
+      status: USER_STATUS.PENDING,
+    };
+
+    if (search) {
+      whereClause.OR = [
+        { firstName: { contains: search, mode: "insensitive" } },
+        { lastName: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+        { storeName: { contains: search, mode: "insensitive" } },
+        { mobile: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [vendors, totalCount] = await Promise.all([
+      prisma.user.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          email: true,
+          mobile: true,
+          firstName: true,
+          lastName: true,
+          storeName: true,
+          storeAddress: true,
+          city: true,
+          state: true,
+          pinCode: true,
+          facebookUrl: true,
+          instagramUrl: true,
+          youtubeUrl: true,
+          role: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: { [sortBy]: sortOrder },
+        skip: offset,
+        take: parseInt(limit),
+      }),
+      prisma.user.count({ where: whereClause }),
+    ]);
+
+    return res.status(200).json({
+      status: "success",
+      data: {
+        vendors,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: totalCount,
+          pages: Math.ceil(totalCount / parseInt(limit)),
+        },
+      },
+      message: "Pending vendors retrieved successfully",
+    });
+  } catch (error) {
+    console.error("Get pending vendors error:", error);
+    return res.status(500).json({
+      status: "error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
     });
   }
 };
@@ -266,19 +424,19 @@ export const updateVendor = async (req, res) => {
       facebookUrl,
       instagramUrl,
       youtubeUrl,
-      otherDetails,
     } = req.body;
 
     if (!id) {
-      return res
-        .status(400)
-        .json({ status: "error", message: "ID is required" });
+      return res.status(400).json({
+        status: "error",
+        message: ERROR_MESSAGES.REQUIRED_FIELDS,
+      });
     }
 
     if (!req.files?.profilePhoto || !req.files?.coverPhoto) {
       return res.status(400).json({
         status: "error",
-        message: "Profile photo and cover photo are required",
+        message: ERROR_MESSAGES.FILES_REQUIRED,
       });
     }
 
@@ -289,18 +447,18 @@ export const updateVendor = async (req, res) => {
     if (!existingVendor) {
       return res.status(404).json({
         status: "error",
-        message: "Vendor not found",
+        message: ERROR_MESSAGES.USER_NOT_FOUND,
       });
     }
 
-    if (existingVendor.status !== "LIVE") {
+    if (existingVendor.status !== USER_STATUS.LIVE) {
       return res.status(403).json({
         status: "error",
-        message: "Approval pending",
+        message: ERROR_MESSAGES.APPROVAL_PENDING,
       });
     }
 
-    if (existingVendor.role !== "VENDOR") {
+    if (existingVendor.role !== USER_ROLES.VENDOR) {
       return res.status(403).json({
         status: "error",
         message: "Only vendors can update vendor information",
@@ -376,12 +534,12 @@ export const updateVendor = async (req, res) => {
       status: "success",
       data: {
         id: updatedVendor.id,
-        role: "vendor",
-        status: "live",
+        role: updatedVendor.role,
+        status: updatedVendor.status,
         profilePhoto: profilePhotoUrl,
         coverPhoto: coverPhotoUrl,
       },
-      message: "Vendor live",
+      message: SUCCESS_MESSAGES.VENDOR_LIVE,
     });
   } catch (error) {
     console.error("Update Vendor Error:", error);
@@ -400,7 +558,7 @@ export const updateVendor = async (req, res) => {
 
     return res.status(500).json({
       status: "error",
-      message: "Server error",
+      message: ERROR_MESSAGES.SERVER_ERROR,
     });
   }
 };

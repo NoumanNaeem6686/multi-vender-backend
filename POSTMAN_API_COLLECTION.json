@@ -1,0 +1,865 @@
+{
+  "info": {
+    "name": "Multi-Vendor Backend API",
+    "description": "Complete API collection for the multi-vendor e-commerce backend with Firebase authentication and role-based access control",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "firebaseToken",
+      "value": "YOUR_FIREBASE_ID_TOKEN",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{firebaseToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Firebase Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firebaseToken\": \"{{firebaseToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with Firebase token. Returns user data and role information."
+          }
+        },
+        {
+          "name": "Create Guest User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"device123\",\n  \"firstName\": \"Guest\",\n  \"lastName\": \"User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/guest",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "guest"]
+            },
+            "description": "Create a guest user for anonymous access."
+          }
+        },
+        {
+          "name": "Register Customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"device123\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"mobile\": \"+1234567890\",\n  \"email\": \"john@example.com\",\n  \"pinCode\": \"12345\",\n  \"city\": \"New York\",\n  \"state\": \"NY\",\n  \"address\": \"123 Main St\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register/customer",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register", "customer"]
+            },
+            "description": "Register a new customer account."
+          }
+        },
+        {
+          "name": "Register Vendor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Vendor\",\n  \"lastName\": \"Store\",\n  \"mobile\": \"+1234567890\",\n  \"pinCode\": \"12345\",\n  \"city\": \"New York\",\n  \"state\": \"NY\",\n  \"address\": \"456 Business Ave\",\n  \"storeName\": \"Vendor Store\",\n  \"storeAddress\": \"456 Business Ave, NY\",\n  \"facebookUrl\": \"https://facebook.com/vendorstore\",\n  \"instagramUrl\": \"https://instagram.com/vendorstore\",\n  \"youtubeUrl\": \"https://youtube.com/vendorstore\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register/vendor",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register", "vendor"]
+            },
+            "description": "Register as a vendor (requires Firebase authentication). Creates VENDOR_PENDING role."
+          }
+        },
+        {
+          "name": "Update User Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"user-id\",\n  \"storeName\": \"My Store\",\n  \"storeAddress\": \"123 Store St\",\n  \"facebookUrl\": \"https://facebook.com/mystore\",\n  \"instagramUrl\": \"https://instagram.com/mystore\",\n  \"youtubeUrl\": \"https://youtube.com/mystore\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/update-role",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "update-role"]
+            },
+            "description": "Update user role from CUSTOMER to VENDOR_PENDING (requires OTP verification)."
+          }
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "profile"]
+            },
+            "description": "Get current user profile information."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout user (Firebase handles token invalidation on client-side)."
+          }
+        },
+        {
+          "name": "Get Vendor Status",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/auth/status/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "status", "{{userId}}"]
+            },
+            "description": "Get vendor approval status by user ID."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vendor Operations",
+      "item": [
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Product Name\",\n  \"description\": \"Product description\",\n  \"price\": 99.99,\n  \"categoryId\": \"category-id\",\n  \"sku\": \"SKU123\",\n  \"stockQuantity\": 100,\n  \"images\": [\"image1.jpg\", \"image2.jpg\"],\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vendor/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["vendor", "products"]
+            },
+            "description": "Create a new product (requires VENDOR or ADMIN role)."
+          }
+        },
+        {
+          "name": "Get Vendor Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/vendor/products?page=1&limit=10&search=product&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["vendor", "products"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "product"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc"
+                }
+              ]
+            },
+            "description": "Get all products for the current vendor (with pagination and search)."
+          }
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Product Name\",\n  \"description\": \"Updated description\",\n  \"price\": 149.99,\n  \"categoryId\": \"category-id\",\n  \"sku\": \"SKU123\",\n  \"stockQuantity\": 150,\n  \"images\": [\"image1.jpg\", \"image2.jpg\"],\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vendor/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["vendor", "products", "{{productId}}"]
+            },
+            "description": "Update an existing product."
+          }
+        },
+        {
+          "name": "Update Product Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vendor/products/{{productId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["vendor", "products", "{{productId}}", "status"]
+            },
+            "description": "Update product active/inactive status."
+          }
+        },
+        {
+          "name": "Delete Product",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/vendor/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["vendor", "products", "{{productId}}"]
+            },
+            "description": "Delete a product."
+          }
+        },
+        {
+          "name": "Get Low Stock Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/vendor/products/low-stock?threshold=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["vendor", "products", "low-stock"],
+              "query": [
+                {
+                  "key": "threshold",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get products with low stock (below threshold)."
+          }
+        },
+        {
+          "name": "Update Vendor Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "id",
+                  "value": "{{userId}}",
+                  "type": "text"
+                },
+                {
+                  "key": "firstName",
+                  "value": "Updated",
+                  "type": "text"
+                },
+                {
+                  "key": "lastName",
+                  "value": "Vendor",
+                  "type": "text"
+                },
+                {
+                  "key": "mobile",
+                  "value": "+1234567890",
+                  "type": "text"
+                },
+                {
+                  "key": "pinCode",
+                  "value": "12345",
+                  "type": "text"
+                },
+                {
+                  "key": "city",
+                  "value": "New York",
+                  "type": "text"
+                },
+                {
+                  "key": "state",
+                  "value": "NY",
+                  "type": "text"
+                },
+                {
+                  "key": "address",
+                  "value": "456 Business Ave",
+                  "type": "text"
+                },
+                {
+                  "key": "storeName",
+                  "value": "Updated Store",
+                  "type": "text"
+                },
+                {
+                  "key": "storeAddress",
+                  "value": "456 Business Ave, NY",
+                  "type": "text"
+                },
+                {
+                  "key": "facebookUrl",
+                  "value": "https://facebook.com/updatedstore",
+                  "type": "text"
+                },
+                {
+                  "key": "instagramUrl",
+                  "value": "https://instagram.com/updatedstore",
+                  "type": "text"
+                },
+                {
+                  "key": "youtubeUrl",
+                  "value": "https://youtube.com/updatedstore",
+                  "type": "text"
+                },
+                {
+                  "key": "profilePhoto",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "coverPhoto",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vendor/update",
+              "host": ["{{baseUrl}}"],
+              "path": ["vendor", "update"]
+            },
+            "description": "Update vendor profile with photos (multipart form data)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Operations",
+      "item": [
+        {
+          "name": "Get Pending Vendors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/vendors/pending?page=1&limit=10&search=vendor&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "vendors", "pending"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "vendor"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc"
+                }
+              ]
+            },
+            "description": "Get all pending vendors awaiting approval (ADMIN only)."
+          }
+        },
+        {
+          "name": "Approve/Reject Vendor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"reason\": \"Vendor approved after review\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/vendors/{{vendorId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "vendors", "{{vendorId}}", "approve"]
+            },
+            "description": "Approve or reject a pending vendor (ADMIN only). Action can be 'approve' or 'reject'."
+          }
+        },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Electronics\",\n  \"description\": \"Electronic devices and gadgets\",\n  \"parentId\": null,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "categories"]
+            },
+            "description": "Create a new category (ADMIN only)."
+          }
+        },
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories?page=1&limit=10&search=electronics&sortBy=name&sortOrder=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "categories"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "electronics"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "name"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "asc"
+                }
+              ]
+            },
+            "description": "Get all categories with pagination and search (ADMIN only)."
+          }
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "categories", "{{categoryId}}"]
+            },
+            "description": "Get category details by ID (ADMIN only)."
+          }
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Electronics\",\n  \"description\": \"Updated electronic devices description\",\n  \"parentId\": null,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "categories", "{{categoryId}}"]
+            },
+            "description": "Update category details (ADMIN only)."
+          }
+        },
+        {
+          "name": "Toggle Category Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "categories", "{{categoryId}}", "status"]
+            },
+            "description": "Toggle category active/inactive status (ADMIN only)."
+          }
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "categories", "{{categoryId}}"]
+            },
+            "description": "Delete a category (ADMIN only)."
+          }
+        },
+        {
+          "name": "Get All Products",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/products?page=1&limit=10&search=product&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "products"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "product"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc"
+                }
+              ]
+            },
+            "description": "Get all products for moderation (ADMIN only)."
+          }
+        },
+        {
+          "name": "Moderate Product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{firebaseToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isApproved\": true,\n  \"reason\": \"Product approved after review\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/products/{{productId}}/moderate",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "products", "{{productId}}", "moderate"]
+            },
+            "description": "Approve or reject a product for public display (ADMIN only)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public Endpoints",
+      "item": [
+        {
+          "name": "Get Active Categories",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories"]
+            },
+            "description": "Get all active categories for public display."
+          }
+        },
+        {
+          "name": "Get Category Tree",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/categories/tree",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories", "tree"]
+            },
+            "description": "Get hierarchical category tree structure."
+          }
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["categories", "{{categoryId}}"]
+            },
+            "description": "Get category details by ID (public)."
+          }
+        },
+        {
+          "name": "Get Public Products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products?page=1&limit=10&search=product&categoryId=category-id&sortBy=price&sortOrder=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["products"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "search",
+                  "value": "product"
+                },
+                {
+                  "key": "categoryId",
+                  "value": "category-id"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "price"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "asc"
+                }
+              ]
+            },
+            "description": "Get approved products for public display with filtering and pagination."
+          }
+        },
+        {
+          "name": "Get Product by ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["products", "{{productId}}"]
+            },
+            "description": "Get product details by ID (public)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Server Health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:3000/health",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["health"]
+            },
+            "description": "Check server and database health status."
+          }
+        }
+      ]
+    }
+  ]
+}
