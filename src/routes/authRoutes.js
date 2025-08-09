@@ -21,7 +21,7 @@ router.post("/auth/guest", createGuestUser);
 router.post("/auth/register/customer", registerCustomer);
 router.post(
   "/auth/register/vendor",
-  authenticateFirebase,
+  // authenticateFirebase,
   registerVendorWebPortal
 );
 router.post("/auth/update-role", ...requireUser, updateUserRole);

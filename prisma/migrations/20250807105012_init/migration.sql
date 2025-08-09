@@ -9,7 +9,6 @@ CREATE TABLE "public"."users" (
     "id" TEXT NOT NULL,
     "deviceId" TEXT,
     "email" TEXT,
-    "password" TEXT,
     "firstName" TEXT,
     "lastName" TEXT,
     "phone" TEXT,

@@ -1,6 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import prisma from "./prisma/index.js";
+import cors from "cors";
 import userRoutes from "./src/routes/authRoutes.js";
 import customerRoutes from "./src/routes/customerRoutes.js";
 import adminRoutes from "./src/routes/adminRoutes.js";
@@ -9,6 +10,33 @@ import publicRoutes from "./src/routes/publicRoutes.js";
 
 dotenv.config();
 const app = express();
+
+// CORS for local dev and optional WEB_ORIGIN
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  process.env.WEB_ORIGIN || null,
+].filter(Boolean);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+  ],
+};
+
+app.use(cors(corsOptions));
+// Express 5 + path-to-regexp: use a RegExp instead of "*" for preflight
+app.options(/.*/, cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
