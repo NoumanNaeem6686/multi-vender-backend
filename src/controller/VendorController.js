@@ -4,7 +4,11 @@ import {
   uploadVendorCoverPhoto,
   deleteFromS3,
 } from "../services/s3Service.js";
-import { validateMobile, validateRequiredFields } from "../utils/validation.js";
+import {
+  validateMobile,
+  validateRequiredFields,
+  validateEmail,
+} from "../utils/validation.js";
 
 import {
   ERROR_MESSAGES,
@@ -16,13 +20,13 @@ import {
 // New Firebase-based vendor registration for web portal
 export const registerVendorWebPortal = async (req, res) => {
   try {
-    // Extract user info from Firebase middleware (already authenticated)
-    const user = req.user;
-
+    // New body-based registration (works with or without Firebase middleware)
     const {
       firstName,
       lastName,
-      mobile,
+      email,
+      firebaseUid,
+      phone,
       pinCode,
       city,
       state,
@@ -34,16 +38,13 @@ export const registerVendorWebPortal = async (req, res) => {
       youtubeUrl,
     } = req.body;
 
+    // Only essential fields required now
     const requiredFields = [
       "firstName",
       "lastName",
-      "mobile",
-      "pinCode",
-      "city",
-      "state",
-      "address",
-      "storeName",
-      "storeAddress",
+      "email",
+      "firebaseUid",
+      "phone",
     ];
 
     const fieldsValidation = validateRequiredFields(req.body, requiredFields);
@@ -54,18 +55,37 @@ export const registerVendorWebPortal = async (req, res) => {
       });
     }
 
-    const mobileValidation = validateMobile(mobile);
-    if (!mobileValidation.isValid) {
+    // const mobileValidation = validateMobile(mobile);
+    // if (!mobileValidation.isValid) {
+    //   return res.status(400).json({
+    //     status: "error",
+    //     message: mobileValidation.message,
+    //   });
+    // }
+
+    const emailValidation = validateEmail(email);
+    if (!emailValidation.isValid) {
       return res.status(400).json({
         status: "error",
-        message: mobileValidation.message,
+        message: emailValidation.message,
       });
     }
 
-    // Check if user already has vendor role
+    // Find existing user by firebaseUid or email
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { firebaseUid: firebaseUid || undefined },
+          { email: email || undefined },
+        ],
+      },
+    });
+
+    // If user exists, block if already a vendor
     if (
-      user.role === USER_ROLES.VENDOR ||
-      user.role === USER_ROLES.VENDOR_PENDING
+      user &&
+      (user.role === USER_ROLES.VENDOR ||
+        user.role === USER_ROLES.VENDOR_PENDING)
     ) {
       return res.status(400).json({
         status: "error",
@@ -73,14 +93,13 @@ export const registerVendorWebPortal = async (req, res) => {
       });
     }
 
-    // Check if mobile number is already used by another vendor
+    // Ensure mobile is not used by another account
     const existingMobile = await prisma.user.findFirst({
       where: {
-        mobile: mobile,
-        id: { not: user.id },
+        phone: phone,
+        ...(user?.id ? { id: { not: user.id } } : {}),
       },
     });
-
     if (existingMobile) {
       return res.status(400).json({
         status: "error",
@@ -88,27 +107,56 @@ export const registerVendorWebPortal = async (req, res) => {
       });
     }
 
-    // Update user to vendor pending status
-    const vendor = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        firstName,
-        lastName,
-        mobile,
-        pinCode,
-        city,
-        state,
-        address,
-        storeName,
-        storeAddress,
-        facebookUrl,
-        instagramUrl,
-        youtubeUrl,
-        role: USER_ROLES.VENDOR_PENDING,
-        status: USER_STATUS.PENDING,
-        isPhoneVerified: false, // Will be verified when they login via mobile
-      },
-    });
+    // Upsert user as vendor pending
+    let vendor;
+    if (user) {
+      vendor = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          firstName,
+          lastName,
+          email,
+          firebaseUid,
+          phone,
+          pinCode: pinCode || null,
+          city: city || null,
+          state: state || null,
+          address: address || null,
+          storeName: storeName || null,
+          storeAddress: storeAddress || null,
+          facebookUrl: facebookUrl || null,
+          instagramUrl: instagramUrl || null,
+          youtubeUrl: youtubeUrl || null,
+          role: USER_ROLES.VENDOR_PENDING,
+          status: USER_STATUS.PENDING,
+          isPhoneVerified: false,
+        },
+      });
+    } else {
+      vendor = await prisma.user.create({
+        data: {
+          firstName,
+          lastName,
+          email,
+          firebaseUid,
+          phone,
+          pinCode: pinCode || null,
+          city: city || null,
+          state: state || null,
+          address: address || null,
+          storeName: storeName || null,
+          storeAddress: storeAddress || null,
+          facebookUrl: facebookUrl || null,
+          instagramUrl: instagramUrl || null,
+          youtubeUrl: youtubeUrl || null,
+          role: USER_ROLES.VENDOR_PENDING,
+          status: USER_STATUS.PENDING,
+          isEmailVerified: false,
+          isPhoneVerified: false,
+          isActive: true,
+        },
+      });
+    }
 
     return res.status(200).json({
       status: "success",
@@ -117,7 +165,7 @@ export const registerVendorWebPortal = async (req, res) => {
         role: vendor.role,
         status: vendor.status,
         email: vendor.email,
-        mobile: vendor.mobile,
+        phone: vendor.phone,
       },
       message: SUCCESS_MESSAGES.VENDOR_SUBMITTED,
     });
@@ -170,7 +218,7 @@ export const updateUserRole = async (req, res) => {
     }
 
     try {
-      const otpResult = await verifyOTP(existingUser.mobile, otp);
+      const otpResult = await verifyOTP(existingUser.phone, otp);
       if (otpResult?.message !== "OTP verified success") {
         return res.status(400).json({
           status: "error",
@@ -309,7 +357,7 @@ export const approveVendor = async (req, res) => {
       data: {
         id: updatedVendor.id,
         email: updatedVendor.email,
-        mobile: updatedVendor.mobile,
+        phone: updatedVendor.phone,
         firstName: updatedVendor.firstName,
         lastName: updatedVendor.lastName,
         storeName: updatedVendor.storeName,
@@ -353,7 +401,7 @@ export const getPendingVendors = async (req, res) => {
         { lastName: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
         { storeName: { contains: search, mode: "insensitive" } },
-        { mobile: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search, mode: "insensitive" } },
       ];
     }
 
@@ -363,7 +411,7 @@ export const getPendingVendors = async (req, res) => {
         select: {
           id: true,
           email: true,
-          mobile: true,
+          phone: true,
           firstName: true,
           lastName: true,
           storeName: true,
@@ -413,7 +461,7 @@ export const updateVendor = async (req, res) => {
       id,
       firstName,
       lastName,
-      mobile,
+      phone,
       email,
       pinCode,
       city,
@@ -511,7 +559,7 @@ export const updateVendor = async (req, res) => {
 
     if (firstName !== undefined) updateData.firstName = firstName;
     if (lastName !== undefined) updateData.lastName = lastName;
-    if (mobile !== undefined) updateData.mobile = mobile;
+    if (phone !== undefined) updateData.phone = phone;
     if (email !== undefined) updateData.email = email;
     if (pinCode !== undefined) updateData.pinCode = pinCode;
     if (city !== undefined) updateData.city = city;
